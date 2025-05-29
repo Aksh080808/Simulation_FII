@@ -293,7 +293,12 @@ class FactorySimulation:
 
 
 
-# ========== Summary Display ==========
+from collections import defaultdict
+import pandas as pd
+import streamlit as st
+from io import BytesIO
+from graphviz import Digraph
+import matplotlib.pyplot as plt
 
 def show_detailed_summary(sim, valid_groups, from_stations, duration):
     st.markdown("---")
@@ -335,12 +340,91 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
     output.seek(0)
     st.download_button("📥 Download Summary as Excel", data=output, file_name="simulation_results.xlsx")
 
-# Optional: Show WIP Chart
+    # === WIP Over Time Chart ===
     st.markdown("### 📈 WIP Over Time")
     wip_df = pd.DataFrame(sim.wip_over_time)
     wip_df["Time"] = sim.time_points
     wip_df = wip_df.set_index("Time")
     st.line_chart(wip_df)
+
+    # === Production Line Layout Diagram ===
+    st.subheader("🗌 Production Line Layout (Linear Flow)")
+    if groups:
+        try:
+            dot = Digraph()
+            dot.attr(rankdir="LR", size="8")
+
+            for group in groups:
+                dot.node(group, shape="box", style="filled", fillcolor="lightblue")
+
+            for i in range(len(groups) - 1):
+                dot.edge(groups[i], groups[i + 1])
+
+            st.graphviz_chart(dot.source)
+        except Exception as e:
+            st.warning(f"Graphviz layout failed: {e}")
+    else:
+        st.info("ℹ️ Run the simulation to view layout diagram.")
+
+    # === Bottleneck Detection and Suggestion ===
+    st.subheader("💡 Bottleneck Analysis and Suggestion")
+    if 'agg' in locals() and 'valid_groups' in locals():
+        min_out = float('inf')
+        bottleneck_group = None
+        for group in groups:
+            out = agg[group]['out']
+            if out < min_out:
+                min_out = out
+                bottleneck_group = group
+
+        if bottleneck_group:
+            eqs = valid_groups[bottleneck_group]
+            avg_ct = sum(sim.cycle_times[eq] for eq in eqs) / len(eqs)
+            base_out = agg[groups[-1]]['out']
+            eq_count = len(eqs)
+            new_out_bottleneck = (agg[bottleneck_group]['out'] / eq_count) * (eq_count + 1)
+            estimated_final_out = base_out + (new_out_bottleneck - agg[bottleneck_group]['out']) * 0.7
+
+            delta_b = round(new_out_bottleneck - agg[bottleneck_group]['out'])
+            delta_final = round(estimated_final_out - base_out)
+
+            st.markdown(
+                f"If you **add 1 more equipment** to **{bottleneck_group}** with cycle time = **{round(avg_ct,1)} sec**, "
+                f"you may increase its output by approximately **{delta_b} boards**, "
+                f"and final output by approximately **{delta_final} boards** over {duration} seconds."
+            )
+    else:
+        st.info("ℹ️ Run the simulation to get bottleneck suggestions.")
+
+    # === Throughput & WIP Bar Chart ===
+    st.subheader("📈 Throughput & WIP")
+    fig, ax = plt.subplots(figsize=(12, 5))
+    x = range(len(groups))
+    bw = 0.25
+    in_vals = [agg[g]['in'] for g in groups]
+    out_vals = [agg[g]['out'] for g in groups]
+    wip_vals = [agg[g]['wip'] for g in groups]
+
+    bars1 = ax.bar(x, in_vals, width=bw, label='In', color='skyblue')
+    bars2 = ax.bar([i + bw for i in x], out_vals, width=bw, label='Out', color='lightgreen')
+    bars3 = ax.bar([i + 2 * bw for i in x], wip_vals, width=bw, label='WIP', color='salmon')
+
+    for bars in [bars1, bars2, bars3]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2.0, height + 1, f'{int(height)}', ha='center', va='bottom', fontsize=8)
+
+    ax.set_xticks([i + bw for i in x])
+    ax.set_xticklabels(groups)
+    ax.legend()
+    ax.grid(True, linestyle='--', alpha=0.6)
+    st.pyplot(fig)
+
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    st.download_button("📥 Download Chart (PNG)", data=buf, file_name="throughput_wip.png", mime="image/png")
+
 
 
 
