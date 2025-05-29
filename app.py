@@ -111,6 +111,28 @@ def new_simulation():
         st.session_state.group_names = group_names
         st.session_state.valid_groups = valid_groups
 
+    # STEP 2: Define Connections
+    st.subheader("Step 2: Define Connections Between Stations")
+    connections = st.session_state.connections or {}
+
+    # Initialize keys for all groups if missing, with empty list
+    for group in st.session_state.group_names:
+      if group not in connections:
+        connections[group] = []
+
+    for group in st.session_state.group_names:
+      to_options = [g for g in st.session_state.group_names if g != group]
+      with st.expander(f"Connections from {group}"):
+        selected = st.multiselect(
+            f"Which stations does {group} connect to?",
+            to_options,
+            default=connections.get(group, []),
+            key=f"conn_{group}"
+        )
+        connections[group] = selected  # Update with current selections
+
+    st.session_state.connections = connections
+
     st.subheader("Step 2: Define Connections Between Stations")
     connections = {}
     for group in st.session_state.group_names:
