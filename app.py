@@ -293,14 +293,6 @@ class FactorySimulation:
         yield self.env.timeout(0)  # ✅ makes this a generator
 
 
-
-from collections import defaultdict
-import pandas as pd
-import streamlit as st
-from io import BytesIO
-from graphviz import Digraph
-import matplotlib.pyplot as plt
-
 def show_detailed_summary(sim, valid_groups, from_stations, duration):
     st.markdown("---")
     st.subheader("📊 Simulation Results Summary")
