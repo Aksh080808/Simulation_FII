@@ -59,7 +59,7 @@ def new_simulation():
     group_names = []
     valid_groups = {}
 
-     if method == "Upload Sheet":
+    if method == "Upload Sheet":
         uploaded_file = st.file_uploader("Upload Excel File (.xlsx)", type=["xlsx"])
         if uploaded_file:
             try:
