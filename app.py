@@ -9,6 +9,7 @@ from collections import defaultdict
 from io import BytesIO
 import zipfile
 import matplotlib.pyplot as plt
+from graphviz import Digraph
 
 # ========== Configuration ==========
 SAVE_DIR = "simulations"
