@@ -32,7 +32,8 @@ for key in ["authenticated", "page", "simulation_data", "group_names", "connecti
 # ========== Pages ==========
 
 def login_page():
-    st.title("🔐 Login")
+    st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
+    st.subheader("🔐 Login")
     user = st.text_input("User ID")
     pwd = st.text_input("Password", type="password")
     if st.button("Login"):
@@ -44,7 +45,8 @@ def login_page():
             st.error("Invalid credentials")
 
 def main_page():
-    st.title("📊 Simulation Portal")
+    st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
+    st.subheader("📊 Simulation Portal")
     st.write("Choose an option:")
     col1, col2 = st.columns(2)
     if col1.button("➕ New Simulation"):
@@ -53,7 +55,9 @@ def main_page():
         st.session_state.page = "open"
 
 def new_simulation():
-    st.title("➕ New Simulation Setup")
+    st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
+    st.subheader("➕ New Simulation Setup")
+
 
     method = st.radio("How do you want to input your simulation setup?", ["Enter Manually", "Upload Sheet"])
 
@@ -166,7 +170,8 @@ def new_simulation():
         show_detailed_summary(run_result, valid_groups, st.session_state.from_stations, duration)
 
 def open_simulation():
-    st.title("📂 Open Simulation")
+    st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
+    st.subheader("📂 Open Simulation")
     files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
 
     if not files:
@@ -196,7 +201,8 @@ def open_simulation():
 
 def edit_simulation():
     data = st.session_state.simulation_data
-    st.title(f"✏️ Edit & Rerun Simulation: {data.get('simulation_name', 'Unnamed')}")
+    st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
+    st.subheader(f"✏️ Edit & Rerun Simulation: {data.get('simulation_name', 'Unnamed')}")
     st.json(data)
     duration = st.number_input("Simulation Duration (seconds)", value=data.get("duration", 100), step=10, key="edit_duration")
 
