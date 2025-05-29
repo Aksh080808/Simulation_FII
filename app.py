@@ -56,11 +56,10 @@ def new_simulation():
 
     method = st.radio("How do you want to input your simulation setup?", ["Enter Manually", "Upload Sheet"])
 
-    # Prepare variables locally first
     group_names = []
     valid_groups = {}
 
-    if method == "Upload Sheet":
+     if method == "Upload Sheet":
         uploaded_file = st.file_uploader("Upload Excel File (.xlsx)", type=["xlsx"])
         if uploaded_file:
             try:
@@ -86,16 +85,11 @@ def new_simulation():
                     }
                     group_names.append(station)
 
-                # IMPORTANT: assign immediately so Step 2 UI can use these
-                st.session_state.group_names = group_names
-                st.session_state.valid_groups = valid_groups
-
                 st.success("Sheet processed successfully!")
 
             except Exception as e:
                 st.error(f"Error processing file: {e}")
                 return
-
     else:
         st.subheader("Step 1: Define Station Groups")
         num_groups = st.number_input("How many station groups?", min_value=1, step=1, key="num_groups_new")
@@ -113,14 +107,12 @@ def new_simulation():
                     valid_groups[group_name] = eq_dict
                     group_names.append(group_name)
 
-        # Assign to session_state immediately after manual entry
+    if valid_groups:
         st.session_state.group_names = group_names
         st.session_state.valid_groups = valid_groups
 
-    # Step 2: Define Connections
     st.subheader("Step 2: Define Connections Between Stations")
     connections = {}
-    # Use session state group names, which are guaranteed set by this point
     for group in st.session_state.group_names:
         to_options = [g for g in st.session_state.group_names if g != group]
         with st.expander(f"Connections from {group}"):
@@ -132,7 +124,6 @@ def new_simulation():
             )
             if selected:
                 connections[group] = selected
-
     st.session_state.connections = connections
 
     st.markdown("### ✅ Summary")
@@ -143,7 +134,6 @@ def new_simulation():
     for k, v in st.session_state.connections.items():
         st.markdown(f"- **{k} ➝** {', '.join(v)}")
 
-    # Step 3: Duration and Save
     st.subheader("Step 3: Duration and Save")
     duration = st.number_input("Simulation Duration (seconds)", min_value=10, value=100, step=10)
     sim_name = st.text_input("Simulation Name", value="simulation_summary").strip()
@@ -152,12 +142,12 @@ def new_simulation():
 
     if st.button("💾 Save Current Setup"):
         data_to_save = {
-            "station_groups": [{"group_name": g, "equipment": st.session_state.valid_groups[g]} for g in st.session_state.valid_groups],
-            "connections": [(src, dst) for src, tos in st.session_state.connections.items() for dst in tos],
+            "station_groups": [{"group_name": g, "equipment": valid_groups[g]} for g in valid_groups],
+            "connections": [(src, dst) for src, tos in connections.items() for dst in tos],
             "from_stations": st.session_state.from_stations,
             "duration": duration,
             "simulation_name": sim_name,
-            "valid_groups": st.session_state.valid_groups,
+            "valid_groups": valid_groups,
         }
         with open(os.path.join(SAVE_DIR, f"{sim_name}.json"), "w") as f:
             json.dump(data_to_save, f, indent=2)
