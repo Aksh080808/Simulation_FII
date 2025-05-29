@@ -8,6 +8,7 @@ import pandas as pd
 from collections import defaultdict
 from io import BytesIO
 import zipfile
+import matplotlib.pyplot as plt
 
 # ========== Configuration ==========
 SAVE_DIR = "simulations"
