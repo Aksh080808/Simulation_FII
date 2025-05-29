@@ -3,10 +3,9 @@
 import streamlit as st
 import os
 import json
-import simpy
 import pandas as pd
 from collections import defaultdict
-from io import BytesIO
+import simpy  # Ensure SimPy is installed
 
 # ========== Configuration ==========
 SAVE_DIR = "simulations"
@@ -16,13 +15,13 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 st.set_page_config(page_title="Production Line Simulator", layout="wide")
 
 # ========== Session State Setup ==========
-for key in ["authenticated", "page", "simulation_data", "group_names", "connections", "from_stations"]:
+for key in ["authenticated", "page", "simulation_data", "group_names", "connections", "from_stations", "valid_groups"]:
     if key not in st.session_state:
         if key == "authenticated":
             st.session_state[key] = False
         elif key == "page":
             st.session_state[key] = "login"
-        elif key in ["connections", "from_stations"]:
+        elif key in ["connections", "from_stations", "valid_groups"]:
             st.session_state[key] = {}
         elif key == "group_names":
             st.session_state[key] = []
@@ -57,22 +56,20 @@ def new_simulation():
 
     method = st.radio("How do you want to input your simulation setup?", ["Enter Manually", "Upload Sheet"])
 
-    valid_groups = {}
     group_names = []
+    valid_groups = {}
 
     if method == "Upload Sheet":
         uploaded_file = st.file_uploader("Upload Excel File (.xlsx)", type=["xlsx"])
         if uploaded_file:
             try:
                 df = pd.read_excel(uploaded_file)
-
-                required_columns = {"serial number", "stations", "number of equipment", "cycle time"}
-                if not required_columns.issubset(df.columns.str.lower()):
-                    st.error("Missing one or more required columns: serial number, stations, number of equipment, cycle time")
-                    return
-
-                # Normalize column names
                 df.columns = df.columns.str.lower()
+                required_columns = {"serial number", "stations", "number of equipment", "cycle time"}
+
+                if not required_columns.issubset(df.columns):
+                    st.error("Missing one or more required columns.")
+                    return
 
                 for _, row in df.iterrows():
                     station = str(row['stations']).strip().upper()
@@ -80,7 +77,7 @@ def new_simulation():
                     cycle_times = [float(ct.strip()) for ct in str(row['cycle time']).split(',')]
 
                     if len(cycle_times) != num_eq:
-                        st.warning(f"Station {station}: Number of equipment and cycle time count mismatch.")
+                        st.warning(f"Mismatch for station {station}")
                         continue
 
                     valid_groups[station] = {
@@ -93,10 +90,10 @@ def new_simulation():
             except Exception as e:
                 st.error(f"Error processing file: {e}")
                 return
-
     else:
-        st.header("Step 1: Define Station Groups")
+        st.subheader("Step 1: Define Station Groups")
         num_groups = st.number_input("How many station groups?", min_value=1, step=1, key="num_groups_new")
+
         for i in range(num_groups):
             with st.expander(f"Station Group {i + 1}"):
                 group_name = st.text_input(f"Group Name {i + 1}", key=f"group_name_{i}").strip().upper()
@@ -109,66 +106,59 @@ def new_simulation():
                         eq_dict[eq_name] = cycle_time
                     valid_groups[group_name] = eq_dict
                     group_names.append(group_name)
-                else:
-                    group_names.append("")
 
-    st.session_state.group_names = group_names
+    if valid_groups:
+        st.session_state.group_names = group_names
+        st.session_state.valid_groups = valid_groups
 
-    # Step 2: Connections (works for both upload or manual)
-    st.header("Step 2: Connect Stations")
-    if "from_stations" not in st.session_state:
-        st.session_state.from_stations = {}
-    if "connections" not in st.session_state:
-        st.session_state.connections = {}
+    st.subheader("Step 2: Define Connections Between Stations")
+    connections = {}
+    for group in st.session_state.group_names:
+        to_options = [g for g in st.session_state.group_names if g != group]
+        with st.expander(f"Connections from {group}"):
+            selected = st.multiselect(
+                f"Which stations does {group} connect to?",
+                to_options,
+                default=st.session_state.connections.get(group, []),
+                key=f"conn_{group}"
+            )
+            if selected:
+                connections[group] = selected
+    st.session_state.connections = connections
 
-    for i, name in enumerate(group_names):
-        if not name:
-            continue
-        with st.expander(f"{name} Connections"):
-            from_options = ['START'] + [g for g in group_names if g and g != name]
-            to_options = ['STOP'] + [g for g in group_names if g and g != name]
+    st.markdown("### ✅ Summary")
+    st.markdown("#### Station Groups and Equipment")
+    for g in st.session_state.valid_groups:
+        st.markdown(f"**{g}**: {', '.join(st.session_state.valid_groups[g].keys())}")
+    st.markdown("#### Connections")
+    for k, v in st.session_state.connections.items():
+        st.markdown(f"- **{k} ➝** {', '.join(v)}")
 
-            from_selected = st.multiselect(f"{name} receives from:", from_options, key=f"from_{i}")
-            to_selected = st.multiselect(f"{name} sends to:", to_options, key=f"to_{i}")
-
-            st.session_state.from_stations[name] = [] if "START" in from_selected else from_selected
-            st.session_state.connections[name] = [] if "STOP" in to_selected else to_selected
-
-    # Step 3: Duration and Save
-    duration = st.number_input("Simulation Duration (seconds)", min_value=10, value=100, step=10, key="sim_duration_new")
-    sim_name = st.text_input("Simulation Name", value="simulation_summary", key="sim_name_new").strip()
+    st.subheader("Step 3: Duration and Save")
+    duration = st.number_input("Simulation Duration (seconds)", min_value=10, value=100, step=10)
+    sim_name = st.text_input("Simulation Name", value="simulation_summary").strip()
     if not sim_name:
         sim_name = "simulation_summary"
 
-    st.header("Save your simulation setup")
-    save_as = st.text_input("Filename to save current inputs", value=sim_name, key="save_filename")
     if st.button("💾 Save Current Setup"):
         data_to_save = {
             "station_groups": [{"group_name": g, "equipment": valid_groups[g]} for g in valid_groups],
-            "connections": [(src, dst) for src, tos in st.session_state.connections.items() for dst in tos],
+            "connections": [(src, dst) for src, tos in connections.items() for dst in tos],
             "from_stations": st.session_state.from_stations,
             "duration": duration,
-            "simulation_name": save_as,
+            "simulation_name": sim_name,
             "valid_groups": valid_groups,
         }
-        with open(os.path.join(SAVE_DIR, f"{save_as}.json"), "w") as f:
+        with open(os.path.join(SAVE_DIR, f"{sim_name}.json"), "w") as f:
             json.dump(data_to_save, f, indent=2)
-        st.success(f"Saved simulation as {save_as}.json")
+        st.success(f"Saved simulation as {sim_name}.json")
 
     if st.button("▶️ Run Simulation"):
-        station_groups_data = [{"group_name": g, "equipment": valid_groups[g]} for g in valid_groups]
-        run_result = run_simulation_backend(
-            station_groups_data,
-            [(src, dst) for src, tos in st.session_state.connections.items() for dst in tos],
-            st.session_state.from_stations,
-            duration,
-        )
-        show_detailed_summary(run_result, valid_groups, st.session_state.from_stations, duration)
+        st.warning("Simulation backend not implemented in this version.")
 
 def open_simulation():
     st.title("📂 Open Simulation")
     files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
-
     if not files:
         st.warning("No simulations found.")
         return
