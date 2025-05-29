@@ -7,6 +7,7 @@ import simpy
 import pandas as pd
 from collections import defaultdict
 from io import BytesIO
+import zipfile
 
 # ========== Configuration ==========
 SAVE_DIR = "simulations"
@@ -424,6 +425,55 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
     fig.savefig(buf, format='png')
     buf.seek(0)
     st.download_button("📥 Download Chart (PNG)", data=buf, file_name="throughput_wip.png", mime="image/png")
+
+    # === ZIP Download of All Charts and Tables ===
+    st.markdown("### 📦 Export All Results")
+
+    zip_name = st.text_input("Enter ZIP file name", value="simulation_results")
+    if st.button("📥 Download All as ZIP"):
+        mem_zip = BytesIO()
+        with zipfile.ZipFile(mem_zip, mode="w") as zf:
+            # Excel summary
+            if output.getbuffer().nbytes > 0:
+                zf.writestr("summary.xlsx", output.getvalue())
+
+            # WIP Over Time Chart (optional, regenerate here if needed)
+            wip_buf = BytesIO()
+            fig2, ax2 = plt.subplots(figsize=(10, 4))
+            wip_df.plot(ax=ax2)
+            ax2.set_title("WIP Over Time")
+            fig2.tight_layout()
+            fig2.savefig(wip_buf, format="png")
+            wip_buf.seek(0)
+            zf.writestr("WIP_Over_Time.png", wip_buf.getvalue())
+
+            # Throughput & WIP Chart
+            buf.seek(0)
+            zf.writestr("Throughput_WIP_Bar.png", buf.getvalue())
+
+            # Layout diagram (regenerate safely)
+            try:
+                if groups:
+                    dot = Digraph()
+                    dot.attr(rankdir="LR", size="8")
+                    for group in groups:
+                        dot.node(group, shape="box", style="filled", fillcolor="lightblue")
+                    for i in range(len(groups) - 1):
+                        dot.edge(groups[i], groups[i + 1])
+                    layout_buf = BytesIO()
+                    layout_buf.write(dot.pipe(format="png"))
+                    layout_buf.seek(0)
+                    zf.writestr("Production_Layout.png", layout_buf.getvalue())
+            except Exception as e:
+                st.warning(f"Could not include layout diagram in ZIP: {e}")
+
+        mem_zip.seek(0)
+        st.download_button(
+            label="📦 Download All as ZIP",
+            data=mem_zip,
+            file_name=f"{zip_name.strip() or 'simulation_results'}.zip",
+            mime="application/zip"
+        )
 
 
 
