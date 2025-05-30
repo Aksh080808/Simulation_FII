@@ -61,6 +61,13 @@ def new_simulation():
     st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
     st.subheader("➕ New Simulation Setup")
 
+    col1, col2 = st.columns(2)
+    if col1.button("🔙 Back"):
+        st.session_state.page = "main"
+        return
+    if col2.button("🏠 Home"):
+        st.session_state.page = "main"
+        return
 
     method = st.radio("How do you want to input your simulation setup?", ["Enter Manually", "Upload Sheet"])
 
@@ -78,7 +85,6 @@ def new_simulation():
                     st.error("Missing one or more required columns: serial number, stations, number of equipment, cycle time")
                     return
 
-                # Normalize column names
                 df.columns = df.columns.str.lower()
 
                 for _, row in df.iterrows():
@@ -121,7 +127,7 @@ def new_simulation():
 
     st.session_state.group_names = group_names
 
-    # Step 2: Connections (works for both upload or manual)
+    # Step 2: Connections
     st.header("Step 2: Connect Stations")
     if "from_stations" not in st.session_state:
         st.session_state.from_stations = {}
@@ -175,8 +181,16 @@ def new_simulation():
 def open_simulation():
     st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
     st.subheader("📂 Open Simulation")
-    files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
 
+    col1, col2 = st.columns(2)
+    if col1.button("🔙 Back"):
+        st.session_state.page = "main"
+        return
+    if col2.button("🏠 Home"):
+        st.session_state.page = "main"
+        return
+
+    files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
     if not files:
         st.warning("No simulations found.")
         return
@@ -206,6 +220,15 @@ def edit_simulation():
     data = st.session_state.simulation_data
     st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
     st.subheader(f"✏️ Edit & Rerun Simulation: {data.get('simulation_name', 'Unnamed')}")
+
+    col1, col2 = st.columns(2)
+    if col1.button("🔙 Back"):
+        st.session_state.page = "open"
+        return
+    if col2.button("🏠 Home"):
+        st.session_state.page = "main"
+        return
+
     st.json(data)
     duration = st.number_input("Simulation Duration (seconds)", value=data.get("duration", 100), step=10, key="edit_duration")
 
