@@ -352,7 +352,7 @@ class FactorySimulation:
         "Utilization (%)": round(100 * agg[g]['busy'] / (agg[g]['count'] * duration), 1) if agg[g]['count'] else 0.0
     } for g in groups])
 
-    st.dataframe(df)
+ st.dataframe(df)
 
     # Optional: Download Summary as Excel
     output = BytesIO()
