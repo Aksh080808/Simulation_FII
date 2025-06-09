@@ -263,9 +263,22 @@ class FactorySimulation:
         self.duration = duration
 
         self.buffers = defaultdict(lambda: simpy.Store(env))
-        self.resources = {eq: simpy.Resource(env, capacity=1) for group in station_groups.values() for eq in group}
-        self.cycle_times = {eq: ct for group in station_groups.values() for eq, ct in group.items()}
-        self.equipment_to_group = {eq: group for group, eqs in station_groups.items() for eq in eqs}
+        self.resources = {
+            eq: simpy.Resource(env, capacity=1)
+            for group in station_groups.values()
+            for eq in group
+        }
+        self.cycle_times = {
+            eq: ct
+            for group in station_groups.values()
+            for eq, ct in group.items()
+        }
+        self.equipment_to_group = {
+            eq: group
+            for group, eqs in station_groups.items()
+            for eq in eqs
+        }
+
         self.throughput_in = defaultdict(int)
         self.throughput_out = defaultdict(int)
         self.wip_over_time = defaultdict(list)
@@ -273,6 +286,7 @@ class FactorySimulation:
         self.equipment_busy_time = defaultdict(float)
         self.board_id = 1
         self.wip_interval = 5
+
         env.process(self.track_wip())
 
     def equipment_worker(self, eq):
@@ -280,13 +294,16 @@ class FactorySimulation:
         while True:
             board = yield self.buffers[group].get()
             self.throughput_in[eq] += 1
+
             with self.resources[eq].request() as req:
                 yield req
                 start = self.env.now
                 yield self.env.timeout(self.cycle_times[eq])
                 end = self.env.now
                 self.equipment_busy_time[eq] += (end - start)
+
             self.throughput_out[eq] += 1
+
             for tgt in self.connections.get(group, []):
                 yield self.buffers[tgt].put(board)
 
@@ -305,20 +322,21 @@ class FactorySimulation:
     def feeder(self):
         while True:
             for group, sources in self.from_stations.items():
-                if not sources:
+                if not sources:  # root stations
                     yield self.buffers[group].put(f"B{self.board_id}")
                     self.board_id += 1
             yield self.env.timeout(1)
 
     def run(self):
-     for group in self.station_groups:
-        for eq in self.station_groups[group]:
-            self.env.process(self.equipment_worker(eq))
+        for group in self.station_groups:
+            for eq in self.station_groups[group]:
+                self.env.process(self.equipment_worker(eq))
         self.env.process(self.feeder())
-        yield self.env.timeout(0)  # ✅ makes this a generator
+        yield self.env.timeout(0)  # Makes run() a generator
 
 
-    def show_detailed_summary(sim, valid_groups, from_stations, duration):
+# ✅ External function to show results
+def show_detailed_summary(sim, valid_groups, from_stations, duration):
     st.markdown("---")
     st.subheader("📊 Simulation Results Summary")
 
@@ -352,7 +370,8 @@ class FactorySimulation:
         "Utilization (%)": round(100 * agg[g]['busy'] / (agg[g]['count'] * duration), 1) if agg[g]['count'] else 0.0
     } for g in groups])
 
- st.dataframe(df)
+    st.dataframe(df)
+
 
     # Optional: Download Summary as Excel
     output = BytesIO()
