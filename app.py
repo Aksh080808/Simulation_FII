@@ -318,14 +318,14 @@ class FactorySimulation:
         yield self.env.timeout(0)  # ✅ makes this a generator
 
 
-def show_detailed_summary(sim, valid_groups, from_stations, duration):
-    st.markdown("---")
-    st.subheader("📊 Simulation Results Summary")
+    def show_detailed_summary(sim, valid_groups, from_stations, duration):
+     st.markdown("---")
+     st.subheader("📊 Simulation Results Summary")
 
-    groups = list(valid_groups.keys())
-    agg = defaultdict(lambda: {'in': 0, 'out': 0, 'busy': 0, 'count': 0, 'cycle_times': [], 'wip': 0})
+     groups = list(valid_groups.keys())
+     agg = defaultdict(lambda: {'in': 0, 'out': 0, 'busy': 0, 'count': 0, 'cycle_times': [], 'wip': 0})
 
-    for group in groups:
+     for group in groups:
         eqs = valid_groups[group]
         for eq in eqs:
             agg[group]['in'] += sim.throughput_in.get(eq, 0)
@@ -338,7 +338,7 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
         curr_in = agg[group]['in']
         agg[group]['wip'] = max(0, prev_out - curr_in)
 
-    df = pd.DataFrame([{
+     df = pd.DataFrame([{
         "Station Group": g,
         "Boards In": agg[g]['in'],
         "Boards Out": agg[g]['out'],
