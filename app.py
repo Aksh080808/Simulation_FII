@@ -247,7 +247,13 @@ def edit_simulation():
 def run_simulation_backend(station_groups_data, connections_list, from_stations_dict, duration):
     env = simpy.Environment()
     station_groups = {g["group_name"]: g["equipment"] for g in station_groups_data}
-    sim = FactorySimulation(env, station_groups, duration, dict(connections_list), from_stations_dict)
+
+    # Convert connection list (tuples) into dictionary
+    connections = defaultdict(list)
+    for src, dst in connections_list:
+        connections[src].append(dst)
+
+    sim = FactorySimulation(env, station_groups, duration, dict(connections), from_stations_dict)
     env.process(sim.run())
     env.run(until=duration)
     return sim
@@ -322,9 +328,10 @@ class FactorySimulation:
     def feeder(self):
         while True:
             for group, sources in self.from_stations.items():
-                if not sources:  # root stations
-                    yield self.buffers[group].put(f"B{self.board_id}")
+                if not sources:  # Root stations only
+                    board = f"B{self.board_id}"
                     self.board_id += 1
+                    yield self.buffers[group].put(board)
             yield self.env.timeout(1)
 
     def run(self):
@@ -332,10 +339,10 @@ class FactorySimulation:
             for eq in self.station_groups[group]:
                 self.env.process(self.equipment_worker(eq))
         self.env.process(self.feeder())
-        yield self.env.timeout(0)  # Makes run() a generator
+        yield self.env.timeout(0)
 
+# ========== Summary Display ==========
 
-# ✅ External function to show results
 def show_detailed_summary(sim, valid_groups, from_stations, duration):
     st.markdown("---")
     st.subheader("📊 Simulation Results Summary")
@@ -372,8 +379,7 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
 
     st.dataframe(df)
 
-
-    # Optional: Download Summary as Excel
+    # Downloadable Excel
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name="Summary", index=False)
