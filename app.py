@@ -403,11 +403,16 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
     
     for ax, group in zip(axs, groups):
         if group in wip_df.columns:
-            max_wip = wip_df[group].max()
-            y_ticks = np.linspace(0, max(10, max_wip * 1.1), num=10)  # Ensure at least 10 ticks up to 10% above max WIP
-            y_ticks = [int(tick) if tick == int(tick) else tick for tick in y_ticks]  # Convert to int if whole number
+            # Calculate max WIP safely
+            group_wip = wip_df[group]
+            max_wip = group_wip.max() if not group_wip.empty else 0
             
-            ax.plot(wip_df.index, wip_df.loc[:, group], marker='o')
+            # Generate y-ticks with proper bounds
+            y_max = max(10, max_wip * 1.1)  # At least 10, or 10% above max
+            y_ticks = np.linspace(0, y_max, num=min(10, int(y_max)+1))  # Max 10 ticks
+            y_ticks = [int(tick) if tick.is_integer() else round(tick, 1) for tick in y_ticks]
+            
+            ax.plot(wip_df.index, group_wip, marker='o')
             ax.set_title(f"WIP Over Time: {group}")
             ax.set_ylabel("WIP (units)")
             ax.set_yticks(y_ticks)
@@ -421,11 +426,13 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
         buf = BytesIO()
         fig_single, ax_single = plt.subplots()
         if group in wip_df.columns:
-            max_wip = wip_df[group].max()
-            y_ticks = np.linspace(0, max(10, max_wip * 1.1), num=10)
-            y_ticks = [int(tick) if tick == int(tick) else tick for tick in y_ticks]
+            group_wip = wip_df[group]
+            max_wip = group_wip.max() if not group_wip.empty else 0
+            y_max = max(10, max_wip * 1.1)
+            y_ticks = np.linspace(0, y_max, num=min(10, int(y_max)+1))
+            y_ticks = [int(tick) if tick.is_integer() else round(tick, 1) for tick in y_ticks]
             
-            ax_single.plot(wip_df.index, wip_df.loc[:, group], marker='o')
+            ax_single.plot(wip_df.index, group_wip, marker='o')
             ax_single.set_title(f"WIP Over Time: {group}")
             ax_single.set_ylabel("WIP (units)")
             ax_single.set_xlabel("Time (seconds)")
@@ -444,26 +451,6 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
     
     axs[-1].set_xlabel("Time (seconds)")
     st.pyplot(fig)
-
-
-    # === Production Line Layout Diagram ===
-    st.subheader("🗌 Production Line Layout (Linear Flow)")
-    if groups:
-        try:
-            dot = Digraph()
-            dot.attr(rankdir="LR", size="8")
-
-            for group in groups:
-                dot.node(group, shape="box", style="filled", fillcolor="lightblue")
-
-            for i in range(len(groups) - 1):
-                dot.edge(groups[i], groups[i + 1])
-
-            st.graphviz_chart(dot.source)
-        except Exception as e:
-            st.warning(f"Graphviz layout failed: {e}")
-    else:
-        st.info("ℹ️ Run the simulation to view layout diagram.")
 
     # === Bottleneck Detection and Suggestion ===
     st.subheader("💡 Bottleneck Analysis and Suggestion")
