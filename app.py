@@ -395,13 +395,6 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
         pd.DataFrame(sim.wip_over_time).to_excel(writer, sheet_name="WIP_Over_Time", index=False)
     output.seek(0)
     st.download_button("📥 Download Summary as Excel", data=output, file_name="simulation_results.xlsx")
-
-   # === WIP Over Time Chart ===
-    st.markdown("### 📈 WIP Over Time")
-    wip_df = pd.DataFrame(sim.wip_over_time)
-    wip_df["Time"] = sim.time_points
-    wip_df = wip_df.set_index("Time")
-    st.line_chart(wip_df)
    
     # === Bottleneck Detection and Suggestion ===
     st.subheader("💡 Bottleneck Analysis and Suggestion")
