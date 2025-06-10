@@ -320,10 +320,19 @@ class FactorySimulation:
                 in_count = sum(self.throughput_in[eq] for eq in self.station_groups[group])
                 out_count = sum(self.throughput_out[eq] for eq in self.station_groups[group])
                 snapshot[group] = max(0, in_count - out_count)
-            self.time_points.append(self.env.now)
+            
+            current_time = self.env.now
+            self.time_points.append(current_time)
             for group, wip in snapshot.items():
                 self.wip_over_time[group].append(wip)
-            yield self.env.timeout(self.wip_interval)
+            
+            # Stop tracking if simulation is over
+            if current_time >= self.duration:
+                break
+                
+            # Wait until next 10% interval or end of simulation
+            next_time = min(current_time + self.wip_interval, self.duration)
+            yield self.env.timeout(next_time - current_time)
 
     def feeder(self):
         while True:
@@ -387,78 +396,13 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
     output.seek(0)
     st.download_button("📥 Download Summary as Excel", data=output, file_name="simulation_results.xlsx")
 
-   # === WIP Over Time Plots ===
-    st.subheader("📈 WIP Over Time per Station Group (10% Intervals)")
-    
-    # Convert simulation data into a DataFrame
+   # === WIP Over Time Chart ===
+    st.markdown("### 📈 WIP Over Time")
     wip_df = pd.DataFrame(sim.wip_over_time)
     wip_df["Time"] = sim.time_points
     wip_df = wip_df.set_index("Time")
-    
-    # Create 10 equally spaced time points
-    time_intervals = np.linspace(0, sim_time, num=10)
-    sampled_wip = pd.DataFrame()
-    
-    for group in groups:
-        if group in wip_df.columns:
-            # Interpolate to get WIP values at our 10 time points
-            sampled_wip[group] = np.interp(time_intervals, 
-                                         wip_df.index, 
-                                         wip_df[group])
-    
-    # Create new DataFrame with sampled points
-    sampled_wip["Time"] = time_intervals
-    sampled_wip = sampled_wip.set_index("Time")
-    
-    fig, axs = plt.subplots(len(groups), 1, figsize=(8, 3 * len(groups)), sharex=True)
-    if len(groups) == 1:
-        axs = [axs]
-    
-    img_buffers = {}
-    
-    for ax, group in zip(axs, groups):
-        if group in sampled_wip.columns:
-            # Calculate y-axis ticks
-            max_wip = sampled_wip[group].max()
-            y_max = max(10, max_wip * 1.1)
-            y_ticks = np.linspace(0, y_max, num=min(10, int(y_max)+1))
-            y_ticks = [int(tick) if tick.is_integer() else round(tick, 1) for tick in y_ticks]
-            
-            ax.plot(sampled_wip.index, sampled_wip[group], marker='o', linestyle='-')
-            ax.set_title(f"WIP Over Time: {group}")
-            ax.set_ylabel("WIP (units)")
-            ax.set_yticks(y_ticks)
-            ax.set_xticks(time_intervals)
-            ax.grid(True)
-        else:
-            ax.set_title(f"WIP Over Time: {group} (No Data)")
-            ax.set_ylabel("WIP (units)")
-            ax.grid(True)
-    
-        # Save individual chart to buffer
-        buf = BytesIO()
-        fig_single, ax_single = plt.subplots()
-        if group in sampled_wip.columns:
-            ax_single.plot(sampled_wip.index, sampled_wip[group], marker='o', linestyle='-')
-            ax_single.set_title(f"WIP Over Time: {group}")
-            ax_single.set_ylabel("WIP (units)")
-            ax_single.set_xlabel("Time (seconds)")
-            ax_single.set_yticks(y_ticks)
-            ax_single.set_xticks(time_intervals)
-            ax_single.grid(True)
-        else:
-            ax_single.set_title(f"WIP Over Time: {group} (No Data)")
-            ax_single.set_ylabel("WIP (units)")
-            ax_single.set_xlabel("Time (seconds)")
-            ax_single.grid(True)
-    
-        fig_single.savefig(buf, format="png")
-        plt.close(fig_single)
-        buf.seek(0)
-        img_buffers[group] = buf
-    
-    axs[-1].set_xlabel("Time (seconds)")
-    st.pyplot(fig)
+    st.line_chart(wip_df)
+   
     # === Bottleneck Detection and Suggestion ===
     st.subheader("💡 Bottleneck Analysis and Suggestion")
     if 'agg' in locals() and 'valid_groups' in locals():
