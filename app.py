@@ -387,64 +387,64 @@ def show_detailed_summary(sim, valid_groups, from_stations, duration):
     output.seek(0)
     st.download_button("📥 Download Summary as Excel", data=output, file_name="simulation_results.xlsx")
 
-    # === WIP Over Time Chart ===
-    # === WIP Over Time Plots ===
-st.subheader("📈 WIP Over Time per Station Group")
+   # === WIP Over Time Plots ===
+    st.subheader("📈 WIP Over Time per Station Group")
+    
+    # Convert simulation data into a DataFrame
+    wip_df = pd.DataFrame(sim.wip_over_time)
+    wip_df["Time"] = sim.time_points
+    wip_df = wip_df.set_index("Time")
+    
+    fig, axs = plt.subplots(len(groups), 1, figsize=(8, 3 * len(groups)), sharex=True)
+    if len(groups) == 1:
+        axs = [axs]
+    
+    img_buffers = {}
+    
+    for ax, group in zip(axs, groups):
+        if group in wip_df.columns:
+            max_wip = wip_df[group].max()
+            y_ticks = np.linspace(0, max(10, max_wip * 1.1), num=10)  # Ensure at least 10 ticks up to 10% above max WIP
+            y_ticks = [int(tick) if tick == int(tick) else tick for tick in y_ticks]  # Convert to int if whole number
+            
+            ax.plot(wip_df.index, wip_df.loc[:, group], marker='o')
+            ax.set_title(f"WIP Over Time: {group}")
+            ax.set_ylabel("WIP (units)")
+            ax.set_yticks(y_ticks)
+            ax.grid(True)
+        else:
+            ax.set_title(f"WIP Over Time: {group} (No Data)")
+            ax.set_ylabel("WIP (units)")
+            ax.grid(True)
+    
+        # Save individual chart to buffer
+        buf = BytesIO()
+        fig_single, ax_single = plt.subplots()
+        if group in wip_df.columns:
+            max_wip = wip_df[group].max()
+            y_ticks = np.linspace(0, max(10, max_wip * 1.1), num=10)
+            y_ticks = [int(tick) if tick == int(tick) else tick for tick in y_ticks]
+            
+            ax_single.plot(wip_df.index, wip_df.loc[:, group], marker='o')
+            ax_single.set_title(f"WIP Over Time: {group}")
+            ax_single.set_ylabel("WIP (units)")
+            ax_single.set_xlabel("Time (seconds)")
+            ax_single.set_yticks(y_ticks)
+            ax_single.grid(True)
+        else:
+            ax_single.set_title(f"WIP Over Time: {group} (No Data)")
+            ax_single.set_ylabel("WIP (units)")
+            ax_single.set_xlabel("Time (seconds)")
+            ax_single.grid(True)
+    
+        fig_single.savefig(buf, format="png")
+        plt.close(fig_single)
+        buf.seek(0)
+        img_buffers[group] = buf
+    
+    axs[-1].set_xlabel("Time (seconds)")
+    st.pyplot(fig)
 
-# Convert simulation data into a DataFrame
-wip_df = pd.DataFrame(sim.wip_over_time)
-wip_df["Time"] = sim.time_points
-wip_df = wip_df.set_index("Time")
-
-fig, axs = plt.subplots(len(groups), 1, figsize=(8, 3 * len(groups)), sharex=True)
-if len(groups) == 1:
-    axs = [axs]
-
-img_buffers = {}
-
-for ax, group in zip(axs, groups):
-    if group in wip_df.columns:
-        max_wip = wip_df[group].max()
-        y_ticks = np.linspace(0, max(10, max_wip * 1.1), num=10)  # Ensure at least 10 ticks up to 10% above max WIP
-        y_ticks = [int(tick) if tick == int(tick) else tick for tick in y_ticks]  # Convert to int if whole number
-        
-        ax.plot(wip_df.index, wip_df.loc[:, group], marker='o')
-        ax.set_title(f"WIP Over Time: {group}")
-        ax.set_ylabel("WIP (units)")
-        ax.set_yticks(y_ticks)
-        ax.grid(True)
-    else:
-        ax.set_title(f"WIP Over Time: {group} (No Data)")
-        ax.set_ylabel("WIP (units)")
-        ax.grid(True)
-
-    # Save individual chart to buffer
-    buf = BytesIO()
-    fig_single, ax_single = plt.subplots()
-    if group in wip_df.columns:
-        max_wip = wip_df[group].max()
-        y_ticks = np.linspace(0, max(10, max_wip * 1.1), num=10)
-        y_ticks = [int(tick) if tick == int(tick) else tick for tick in y_ticks]
-        
-        ax_single.plot(wip_df.index, wip_df.loc[:, group], marker='o')
-        ax_single.set_title(f"WIP Over Time: {group}")
-        ax_single.set_ylabel("WIP (units)")
-        ax_single.set_xlabel("Time (seconds)")
-        ax_single.set_yticks(y_ticks)
-        ax_single.grid(True)
-    else:
-        ax_single.set_title(f"WIP Over Time: {group} (No Data)")
-        ax_single.set_ylabel("WIP (units)")
-        ax_single.set_xlabel("Time (seconds)")
-        ax_single.grid(True)
-
-    fig_single.savefig(buf, format="png")
-    plt.close(fig_single)
-    buf.seek(0)
-    img_buffers[group] = buf
-
-axs[-1].set_xlabel("Time (seconds)")
-st.pyplot(fig)
 
     # === Production Line Layout Diagram ===
     st.subheader("🗌 Production Line Layout (Linear Flow)")
