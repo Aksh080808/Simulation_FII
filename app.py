@@ -73,6 +73,7 @@ def new_simulation():
 
     valid_groups = {}
     group_names = []
+    upload_mode = False  # Flag to track if upload mode is active
 
     if method == "Upload Sheet":
         uploaded_file = st.file_uploader("Upload Excel File (.xlsx)", type=["xlsx"])
@@ -86,6 +87,12 @@ def new_simulation():
                     st.error("Missing one or more required columns: serial number, stations, number of equipment, cycle time")
                     return
 
+                # Clear previous manual inputs
+                st.session_state.group_names = []
+                st.session_state.connections = {}
+                st.session_state.from_stations = {}
+
+                # Parse stations from the sheet
                 for _, row in df.iterrows():
                     station = str(row['stations']).strip().upper()
                     num_eq = int(row['number of equipment'])
@@ -100,7 +107,9 @@ def new_simulation():
                     }
                     group_names.append(station)
 
-                # Automatically connect stations in sequence
+                # Automatically set connections in sequence:
+                # - First station: from START (empty from_stations list)
+                # - Last station: to STOP (empty connections list)
                 connections = {}
                 from_stations = {}
 
@@ -119,6 +128,8 @@ def new_simulation():
                 st.session_state.connections = connections
                 st.session_state.group_names = group_names
 
+                upload_mode = True  # Indicate upload mode active
+
                 st.success("Sheet processed and station connections auto-generated!")
 
             except Exception as e:
@@ -126,6 +137,7 @@ def new_simulation():
                 return
 
     else:
+        # Manual entry mode (unchanged)
         st.header("Step 1: Define Station Groups")
         num_groups = st.number_input("How many station groups?", min_value=1, step=1, key="num_groups_new")
         for i in range(num_groups):
@@ -145,28 +157,29 @@ def new_simulation():
 
         st.session_state.group_names = group_names
 
+    # Step 2: Connections - ONLY show if manual entry (not upload mode)
+    if not upload_mode:
+        st.header("Step 2: Connect Stations")
+        if "from_stations" not in st.session_state:
+            st.session_state.from_stations = {}
+        if "connections" not in st.session_state:
+            st.session_state.connections = {}
 
-    # Step 2: Connections
-    st.header("Step 2: Connect Stations")
-    if "from_stations" not in st.session_state:
-        st.session_state.from_stations = {}
-    if "connections" not in st.session_state:
-        st.session_state.connections = {}
+        for i, name in enumerate(group_names):
+            if not name:
+                continue
+            with st.expander(f"{name} Connections"):
+                from_options = ['START'] + [g for g in group_names if g and g != name]
+                to_options = ['STOP'] + [g for g in group_names if g and g != name]
 
-    for i, name in enumerate(group_names):
-        if not name:
-            continue
-        with st.expander(f"{name} Connections"):
-            from_options = ['START'] + [g for g in group_names if g and g != name]
-            to_options = ['STOP'] + [g for g in group_names if g and g != name]
+                from_selected = st.multiselect(f"{name} receives from:", from_options, key=f"from_{i}")
+                to_selected = st.multiselect(f"{name} sends to:", to_options, key=f"to_{i}")
 
-            from_selected = st.multiselect(f"{name} receives from:", from_options, key=f"from_{i}")
-            to_selected = st.multiselect(f"{name} sends to:", to_options, key=f"to_{i}")
+                st.session_state.from_stations[name] = [] if "START" in from_selected else from_selected
+                st.session_state.connections[name] = [] if "STOP" in to_selected else to_selected
 
-            st.session_state.from_stations[name] = [] if "START" in from_selected else from_selected
-            st.session_state.connections[name] = [] if "STOP" in to_selected else to_selected
-
-    # Step 3: Duration and Save
+    # Step 3: Simulation Duration & Save (shown always)
+    st.header("Step 3: Simulation Duration & Save")
     duration = st.number_input("Simulation Duration (seconds)", min_value=10, value=100, step=10, key="sim_duration_new")
     sim_name = st.text_input("Simulation Name", value="simulation_summary", key="sim_name_new").strip()
     if not sim_name:
