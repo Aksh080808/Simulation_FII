@@ -79,13 +79,12 @@ def new_simulation():
         if uploaded_file:
             try:
                 df = pd.read_excel(uploaded_file)
+                df.columns = df.columns.str.lower()
 
                 required_columns = {"serial number", "stations", "number of equipment", "cycle time"}
-                if not required_columns.issubset(df.columns.str.lower()):
+                if not required_columns.issubset(df.columns):
                     st.error("Missing one or more required columns: serial number, stations, number of equipment, cycle time")
                     return
-
-                df.columns = df.columns.str.lower()
 
                 for _, row in df.iterrows():
                     station = str(row['stations']).strip().upper()
@@ -101,7 +100,26 @@ def new_simulation():
                     }
                     group_names.append(station)
 
-                st.success("Sheet processed successfully!")
+                # Automatically connect stations in sequence
+                connections = {}
+                from_stations = {}
+
+                for i, group in enumerate(group_names):
+                    if i == 0:
+                        from_stations[group] = []  # First station receives from START
+                        connections[group] = [group_names[i + 1]] if i + 1 < len(group_names) else []
+                    elif i == len(group_names) - 1:
+                        from_stations[group] = [group_names[i - 1]]
+                        connections[group] = []  # Last station sends to STOP
+                    else:
+                        from_stations[group] = [group_names[i - 1]]
+                        connections[group] = [group_names[i + 1]]
+
+                st.session_state.from_stations = from_stations
+                st.session_state.connections = connections
+                st.session_state.group_names = group_names
+
+                st.success("Sheet processed and station connections auto-generated!")
 
             except Exception as e:
                 st.error(f"Error processing file: {e}")
@@ -125,7 +143,8 @@ def new_simulation():
                 else:
                     group_names.append("")
 
-    st.session_state.group_names = group_names
+        st.session_state.group_names = group_names
+
 
     # Step 2: Connections
     st.header("Step 2: Connect Stations")
