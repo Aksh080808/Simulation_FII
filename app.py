@@ -249,9 +249,9 @@ def open_simulation():
         st.session_state.page = "edit"
 
 def edit_simulation():
-    data = st.session_state.simulation_data
     st.title("🛠️ Production Line Simulation App (Discrete Event Simulation)")
-    st.subheader(f"✏️ Edit & Rerun Simulation: {data.get('simulation_name', 'Unnamed')}")
+    sim_name = st.session_state.simulation_data.get("simulation_name", "Unnamed")
+    st.subheader(f"✏️ Edit & Rerun Simulation: {sim_name}")
 
     col1, col2 = st.columns(2)
     if col1.button("🔙 Back"):
@@ -261,18 +261,72 @@ def edit_simulation():
         st.session_state.page = "main"
         return
 
-    st.json(data)
-    duration = st.number_input("Simulation Duration (seconds)", value=data.get("duration", 100), step=10, key="edit_duration")
+    # Show editable JSON text area
+    json_str = json.dumps(st.session_state.simulation_data, indent=2)
+    edited_json_str = st.text_area("Edit Simulation JSON here:", value=json_str, height=400)
+
+    parse_error = None
+    valid_json = None
+
+    if st.button("Validate JSON"):
+        try:
+            valid_json = json.loads(edited_json_str)
+            st.success("JSON is valid!")
+            st.session_state.simulation_data = valid_json
+        except Exception as e:
+            parse_error = str(e)
+            st.error(f"Invalid JSON: {parse_error}")
+
+    # Use duration from edited JSON if valid, else from session data, else default 100
+    duration_val = 100
+    try:
+        duration_val = st.session_state.simulation_data.get("duration", 100)
+    except Exception:
+        pass
+
+    duration_val = st.number_input(
+        "Simulation Duration (seconds)",
+        min_value=10,
+        value=duration_val,
+        step=10,
+        key="edit_duration"
+    )
 
     if st.button("▶️ Run Simulation Again"):
-        run_result = run_simulation_backend(
-            data["station_groups"],
-            data["connections"],
-            data["from_stations"],
-            duration,
-        )
-        valid_groups = {g["group_name"]: g["equipment"] for g in data["station_groups"]}
-        show_detailed_summary(run_result, valid_groups, data["from_stations"], duration)
+        try:
+            sim_data = st.session_state.simulation_data
+            if isinstance(sim_data, str):
+                sim_data = json.loads(sim_data)
+
+            # Update duration with current input value
+            sim_data["duration"] = duration_val
+            st.session_state.simulation_data = sim_data
+
+            run_result = run_simulation_backend(
+                sim_data["station_groups"],
+                sim_data["connections"],
+                sim_data["from_stations"],
+                duration_val,
+            )
+            valid_groups = {g["group_name"]: g["equipment"] for g in sim_data["station_groups"]}
+            show_detailed_summary(run_result, valid_groups, sim_data["from_stations"], duration_val)
+
+        except Exception as e:
+            st.error(f"Error running simulation: {e}")
+
+    if st.button("💾 Save Edited Simulation"):
+        try:
+            sim_data = st.session_state.simulation_data
+            if isinstance(sim_data, str):
+                sim_data = json.loads(sim_data)
+
+            sim_data["duration"] = duration_val
+            save_as = sim_data.get("simulation_name", "edited_simulation")
+            with open(os.path.join(SAVE_DIR, f"{save_as}.json"), "w") as f:
+                json.dump(sim_data, f, indent=2)
+            st.success(f"Saved edited simulation as {save_as}.json")
+        except Exception as e:
+            st.error(f"Error saving simulation: {e}")
 
 # ========== Simulation Backend ==========
 
